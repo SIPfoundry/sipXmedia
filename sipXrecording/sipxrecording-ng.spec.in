@@ -18,6 +18,7 @@ Source: %name-%version.tar.gz
 
 Obsoletes: sipxvxml
 
+Obsoletes: @PACKAGE_OBSOLETE_NAME@
 Requires: sipxcommons >= %version
 Requires: chkconfig
 BuildRequires: sipxconfig >= %version

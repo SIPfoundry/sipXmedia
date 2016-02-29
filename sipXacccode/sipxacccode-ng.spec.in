@@ -16,6 +16,7 @@ BuildRequires: sipxcommons >= %version
 
 Source: %name-%version.tar.gz
 
+Obsoletes: @PACKAGE_OBSOLETE_NAME@
 Requires: sipxcommserverlib >= %version
 Requires: sipxcommons >= %version
 Requires: chkconfig

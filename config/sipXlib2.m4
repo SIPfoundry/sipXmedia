@@ -30,6 +30,7 @@ AC_SUBST(SIPX_DBDIR,   [${localstatedir}/sipxdata/sipdb])
 AC_SUBST(SIPX_LOGDIR,  [${localstatedir}/log/sipxpbx])
 AC_SUBST(SIPX_RUNDIR,  [${localstatedir}/run/sipxpbx])
 AC_SUBST(SIPX_VARLIB,  [${localstatedir}/lib/sipxpbx])
+AC_SUBST(SIPX_LOCKDIR,  [${localstatedir}/lock/subsys/sipxpbx])
 AC_SUBST(SIPX_SERVICEDIR, [${sysconfdir}/init.d])
 # sipx RPMs should be hardcoded to use sipxchange user for their sipx user, not the buildbot user
 AC_SUBST(SIPX_RPM_CONFIGURE_OPTIONS,  [SIPXPBXUSER=sipx])
@@ -57,6 +58,12 @@ else
     esac
 fi
 AC_DEFINE_UNQUOTED([PACKAGE_REVISION], "${PACKAGE_REVISION}", [Revion number including git SHA])
+
+AC_ARG_VAR(PACKAGE_OBSOLETE_NAME, [Package obsolete name])
+if test -z "$PACKAGE_OBSOLETE_NAME"; then
+  PACKAGE_OBSOLETE_NAME=`echo ${PACKAGE/%-ng/}`
+fi
+AC_DEFINE_UNQUOTED([PACKAGE_OBSOLETE_NAME], "${PACKAGE_OBSOLETE_NAME}", [Package obsolete name])
 
 # automake eats straight "if.." in makefiles as autoconf conditions. this avoids that
 # http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=34051
