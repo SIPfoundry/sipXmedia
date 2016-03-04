@@ -11,7 +11,7 @@ Url: http://www.sipfoundry.org
 
 BuildRequires: automake
 Obsoletes: @PACKAGE_OBSOLETE_NAME@
-Requires: sipxsupervisor >= %version
+Requires: sipxsupervisor-ng >= %version
 
 Source: %name-%version.tar.gz
 Prefix: %_prefix
