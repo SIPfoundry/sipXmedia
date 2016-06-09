@@ -41,28 +41,34 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
     @Override
     public void migrate(String path) {
         LOG.info("GridFSMailboxManager: Migrating all voicemails in " + path);
-        FilesystemMailboxManager fileSystemMailbox = createFileSystemMailboxManager();
+        FilesystemMailboxManager fileSystemMailbox = createFileSystemMailboxManager(path);
         
-        for (String user : new File(m_mailstoreDirectory).list()) {
-            LOG.info("GridFSMailboxManager: Migrating voicemails for user " + user);
-            MailboxDetails details = fileSystemMailbox.getMailboxDetails(user);
-            for (String message : details.getInbox()) {
-                migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.INBOX, message, true), Folder.INBOX);
+        String[] fileList = new File(path).list();
+        if(fileList != null) {
+    	    for (String user : fileList) {
+                LOG.info("GridFSMailboxManager: Migrating voicemails for user " + user);
+                MailboxDetails details = fileSystemMailbox.getMailboxDetails(user);
+                for (String message : details.getInbox()) {
+                    migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.INBOX, message, true), Folder.INBOX);
+                }
+                for (String message : details.getDeleted()) {
+                    migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.DELETED, message, true), Folder.DELETED);
+                }
+                for (String message : details.getSaved()) {
+                    migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.SAVED, message, true), Folder.SAVED);
+                }
+                for (String message : details.getConferences()) {
+                    migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.CONFERENCE, message, true), Folder.CONFERENCE);
+                }
+                
+                // Migrate custom prompts e.g. recorded name and greeting prompts
+                LOG.info("GridFSMailboxManager: Migrating custom prompts for user " + user);
+                migrateCustomPrompts(user, path);
             }
-            for (String message : details.getDeleted()) {
-                migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.DELETED, message, true), Folder.DELETED);
-            }
-            for (String message : details.getSaved()) {
-                migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.SAVED, message, true), Folder.SAVED);
-            }
-            for (String message : details.getConferences()) {
-                migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.CONFERENCE, message, true), Folder.CONFERENCE);
-            }
-            
-            // Migrate custom prompts e.g. recorded name and greeting prompts
-            LOG.info("GridFSMailboxManager: Migrating custom prompts for user " + user);
-            migrateCustomPrompts(user);
-        }
+    	} else {
+            LOG.error("GridFSMailboxManager: Unable to access voice mailbox " + path);
+    	}
+
         LOG.info("GridFSMailboxManager: Done migrating all voicemails in " + path);
     }	
 
@@ -594,9 +600,9 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
         }
     }
 	
-	private void migrateCustomPrompts(String user) {
+	private void migrateCustomPrompts(String user, String path) {
 		// check name recorded
-        File userMailstore = new File(m_mailstoreDirectory, user);
+        File userMailstore = new File(path, user);
         
         //Migrate record name prompts
         migrateRecordedName(user, userMailstore);
@@ -610,15 +616,17 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
 	private void migrateRecordedName(String user, File mailStore) {
 		String prompt = getNameFile();
 		File promptFile = new File(mailStore, prompt);
-		try (FileInputStream inputStream = new FileInputStream(promptFile)) {
-			TempMessage tempMessage = createTempMessage(prompt, "", false);
-			m_gridFSVmTemplate.store(inputStream, getNameFile(), getAudioFormat()
-				, VmAudioIdentifier.CURRENT
-                , RECORDER_LABEL, RECORDER_MESSAGE_ID
-                , tempMessage);
-		} catch (IOException ex) {
-            LOG.error("Failed to migrate recorded name: " + prompt + " user:" + user , ex);
-        }
+		if(promptFile.exists()) {
+			try (FileInputStream inputStream = new FileInputStream(promptFile)) {
+				TempMessage tempMessage = createTempMessage(prompt, "", false);
+				m_gridFSVmTemplate.store(inputStream, getNameFile(), getAudioFormat()
+					, VmAudioIdentifier.CURRENT
+	                , RECORDER_LABEL, RECORDER_MESSAGE_ID
+	                , tempMessage);
+			} catch (IOException ex) {
+	            LOG.error("Failed to migrate recorded name: " + prompt + " user:" + user , ex);
+	        }	
+		}
 	}
 	
     private void migrateGreetingPrompts(String user, GreetingType type, File mailStore) {
@@ -636,11 +644,11 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
     	}
     }
     
-    private FilesystemMailboxManager createFileSystemMailboxManager() {
+    private FilesystemMailboxManager createFileSystemMailboxManager(String path) {
     	FilesystemMailboxManager mailbox = new FilesystemMailboxManager();
     	//Configure File Sytem mailbox
     	mailbox.setMessageDescriptorReader(new MessageDescriptorReader());
-    	mailbox.setMailstoreDirectory(m_mailstoreDirectory);
+    	mailbox.setMailstoreDirectory(path);
     	mailbox.setAudioFormat(getAudioFormat());
     	mailbox.init();
     	
