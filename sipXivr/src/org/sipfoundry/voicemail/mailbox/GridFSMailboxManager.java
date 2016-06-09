@@ -37,6 +37,34 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
             mailstore.mkdir();
         }
     }
+	
+    @Override
+    public void migrate(String path) {
+        LOG.info("GridFSMailboxManager: Migrating all voicemails in " + path);
+        FilesystemMailboxManager fileSystemMailbox = createFileSystemMailboxManager();
+        
+        for (String user : new File(m_mailstoreDirectory).list()) {
+            LOG.info("GridFSMailboxManager: Migrating voicemails for user " + user);
+            MailboxDetails details = fileSystemMailbox.getMailboxDetails(user);
+            for (String message : details.getInbox()) {
+                migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.INBOX, message, true), Folder.INBOX);
+            }
+            for (String message : details.getDeleted()) {
+                migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.DELETED, message, true), Folder.DELETED);
+            }
+            for (String message : details.getSaved()) {
+                migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.SAVED, message, true), Folder.SAVED);
+            }
+            for (String message : details.getConferences()) {
+                migrateVoicemail(user, fileSystemMailbox.getVmMessage(user, Folder.CONFERENCE, message, true), Folder.CONFERENCE);
+            }
+            
+            // Migrate custom prompts e.g. recorded name and greeting prompts
+            LOG.info("GridFSMailboxManager: Migrating custom prompts for user " + user);
+            migrateCustomPrompts(user);
+        }
+        LOG.info("GridFSMailboxManager: Done migrating all voicemails in " + path);
+    }	
 
 	@Override
 	public MailboxDetails getMailboxDetails(String username) {
@@ -291,7 +319,7 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
             String filename = messageId + String.format(VmAudioIdentifier.CURRENT.getFormat(), getAudioFormat());
             dbFile = m_gridFSVmTemplate.store(content, filename, MimeType.getMimeByFormat(getAudioFormat())
                                             , VmAudioIdentifier.CURRENT, storageFolder.getId()
-                                            , messageId, destUser, descriptor);
+                                            , messageId, destUser.getUserName(), descriptor, true);
         } catch (MongoException ex) {
             LOG.error("VmMessage::newMessage Mongo Error " + ex.getMessage(), ex);
             return null;
@@ -339,8 +367,9 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
                 String filename = newMessageId + String.format(VmAudioIdentifier.CURRENT.getFormat(), getAudioFormat());
                 m_gridFSVmTemplate.store(content, filename, MimeType.getMimeByFormat(getAudioFormat())
                                                 , VmAudioIdentifier.CURRENT, Folder.INBOX.getId()
-                                                , newMessageId, destUser
-                                                , copyMediaDescription(descriptor, comments));
+                                                , newMessageId, destUser.getUserName()
+                                                , copyMediaDescription(descriptor, comments)
+                                                , true);
             } catch (MongoException | IOException ex) {
                 LOG.error("VmMessage::forwardMessage Mongo Error " + ex.getMessage(), ex);
                 return null;
@@ -359,7 +388,8 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
             String originalFilename = newMessageId + String.format(VmAudioIdentifier.ORIGINAL.getFormat(), getAudioFormat());
             m_gridFSVmTemplate.store(preferredAudio.getInputStream(), originalFilename, MimeType.getMimeByFormat(getAudioFormat())
                     , VmAudioIdentifier.ORIGINAL, Folder.INBOX.getId(), newMessageId
-                    , destUser, copyMediaDescription(descriptor, preferredAudioDescriptor));
+                    , destUser.getUserName(), copyMediaDescription(descriptor, preferredAudioDescriptor)
+                    , true);
             
             String combinedFilename = newMessageId + String.format(VmAudioIdentifier.COMBINED.getFormat(), getAudioFormat());
             if(comments.getTempPath() != null) {
@@ -368,7 +398,9 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
                     combinedFile = combinedForwardAudio(preferredAudio, comments, destUser);
                     m_gridFSVmTemplate.store(combinedFile, combinedFilename, MimeType.getMimeByFormat(getAudioFormat())
                             , VmAudioIdentifier.COMBINED, Folder.INBOX.getId()
-                            , newMessageId, destUser, updateMediaDescription(descriptor, combinedFile));
+                            , newMessageId, destUser.getUserName()
+                            , updateMediaDescription(descriptor, combinedFile)
+                            , true);
                 } catch(Exception ex) {
                     LOG.error("Unable to generate forward message audio: " + ex.getMessage(), ex);
                     return null;
@@ -379,7 +411,8 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
                 m_gridFSVmTemplate.store(preferredAudio.getInputStream(), combinedFilename
                         , MimeType.getMimeByFormat(getAudioFormat())
                         , VmAudioIdentifier.COMBINED, Folder.INBOX.getId()
-                        , newMessageId, destUser, descriptor);
+                        , newMessageId, destUser.getUserName(), descriptor
+                        , true);
             }
             
             m_mwi.sendMWI(destUser, getMailboxDetails(destUser.getUserName()));
@@ -545,6 +578,73 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
         descriptor.setAudioFormat(vmDescriptor.getAudioFormat());
         descriptor.setContentLength(audioFile.length());
         return descriptor;
+    }
+	
+	private void migrateVoicemail(String user, VmMessage message, Folder storageFolder) {
+		GridFSVmTemplate template = getGridFSVmTemplate();
+        boolean urgent = message.isUrgent();
+        try {
+            LOG.debug(String.format("migrate file %s ", message.getAudioFile().getPath()));
+            template.store(message.getAudioFile(), message.getAudioFile().getName()
+            		, getAudioFormat(), VmAudioIdentifier.fromFilename(message.getAudioFile().getName(), getAudioFormat())
+            		, storageFolder.getId(), message.getMessageId(), user
+            		, message.getDescriptor(), urgent);
+        } catch (IOException e) {
+            LOG.error(String.format("Failed to migrate file %s", message.getAudioFile().getPath()));
+        }
+    }
+	
+	private void migrateCustomPrompts(String user) {
+		// check name recorded
+        File userMailstore = new File(m_mailstoreDirectory, user);
+        
+        //Migrate record name prompts
+        migrateRecordedName(user, userMailstore);
+        
+        //Migrate standard greetings
+        migrateGreetingPrompts(user, GreetingType.STANDARD, userMailstore);
+        migrateGreetingPrompts(user, GreetingType.OUT_OF_OFFICE, userMailstore);
+        migrateGreetingPrompts(user, GreetingType.EXTENDED_ABSENCE, userMailstore);
+	}
+	
+	private void migrateRecordedName(String user, File mailStore) {
+		String prompt = getNameFile();
+		File promptFile = new File(mailStore, prompt);
+		try (FileInputStream inputStream = new FileInputStream(promptFile)) {
+			TempMessage tempMessage = createTempMessage(prompt, "", false);
+			m_gridFSVmTemplate.store(inputStream, getNameFile(), getAudioFormat()
+				, VmAudioIdentifier.CURRENT
+                , RECORDER_LABEL, RECORDER_MESSAGE_ID
+                , tempMessage);
+		} catch (IOException ex) {
+            LOG.error("Failed to migrate recorded name: " + prompt + " user:" + user , ex);
+        }
+	}
+	
+    private void migrateGreetingPrompts(String user, GreetingType type, File mailStore) {
+    	String prompt = getGreetingTypeName(type);
+    	
+    	File promptFile = new File(mailStore, getGreetingTypeName(type));
+    	if(promptFile.exists()) {
+    		try (FileInputStream inputStream = new FileInputStream(promptFile)) {
+            	TempMessage tempMessage = createTempMessage(prompt, "", false);
+            	m_gridFSVmTemplate.store(inputStream, getGreetingTypeName(type), getAudioFormat(), VmAudioIdentifier.CURRENT
+                        , GREETINGS_LABEL, type.getId(), tempMessage);
+            } catch (IOException ex) {
+                LOG.error("Failed to migrate greeting prompts: " + prompt + " user:" + user , ex);
+            }	
+    	}
+    }
+    
+    private FilesystemMailboxManager createFileSystemMailboxManager() {
+    	FilesystemMailboxManager mailbox = new FilesystemMailboxManager();
+    	//Configure File Sytem mailbox
+    	mailbox.setMessageDescriptorReader(new MessageDescriptorReader());
+    	mailbox.setMailstoreDirectory(m_mailstoreDirectory);
+    	mailbox.setAudioFormat(getAudioFormat());
+    	mailbox.init();
+    	
+    	return mailbox;
     }
 	
 	private synchronized String nextMessageId(String key) {

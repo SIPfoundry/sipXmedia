@@ -89,25 +89,18 @@ public class GridFSVmTemplate {
     
     public GridFSFile store(File file, String filename, String contentType
             , VmAudioIdentifier audioIdentifier, String label, String messageId
-            , User destUser, MessageDescriptor descriptor) throws IOException {
+            , String destUser, MessageDescriptor descriptor, boolean urgent) throws IOException {
         try(FileInputStream content = new FileInputStream(file)) {
-            return store(content, filename, contentType, audioIdentifier, label, messageId, destUser, descriptor, true);
+            return store(content, filename, contentType, audioIdentifier, label, messageId, destUser, descriptor, urgent);
         }
-    }
-
-    public GridFSFile store(InputStream content, String filename, String contentType
-            , VmAudioIdentifier audioIdentifier, String label, String messageId
-            , User destUser, MessageDescriptor descriptor) {
-        return store(content, filename, contentType, audioIdentifier, label, messageId, destUser, descriptor, true);
     }
     
     public GridFSFile store(InputStream content, String filename, String contentType
             , VmAudioIdentifier audioIdentifier, String label, String messageId
-            , User destUser, MessageDescriptor descriptor, boolean unheard) {
+            , String destUser, MessageDescriptor descriptor, boolean unheard) {
         Assert.notNull(content);
         
-        DBObject vmMetadata = findVM(destUser.getUserName(), label, messageId
-                                , new BasicDBObject(MongoConstants.ID, 1));
+        DBObject vmMetadata = findVM(destUser, label, messageId, new BasicDBObject(MongoConstants.ID, 1));
         
         boolean newVm = false;
         if(vmMetadata == null) {
@@ -471,12 +464,12 @@ public class GridFSVmTemplate {
     }
 
     public BasicDBObject createVmMetadata(BasicDBObject metadata, VmAudioIdentifier audioIdentifier
-            , String label, String messageId, User destUser, MessageDescriptor descriptor
+            , String label, String messageId, String destUser, MessageDescriptor descriptor
             , boolean unheard) {
         Assert.notNull(metadata);
         Assert.notNull(destUser);
 
-        metadata.append(USER, destUser.getUserName())
+        metadata.append(USER, destUser)
                 .append(LABEL, label)
                 .append(MESSAGE_ID, messageId)
                 .append(AUDIO_IDENTIFIER, audioIdentifier.toString())

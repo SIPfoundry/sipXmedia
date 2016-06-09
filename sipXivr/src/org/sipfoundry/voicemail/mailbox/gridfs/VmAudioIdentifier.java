@@ -15,6 +15,16 @@ public enum VmAudioIdentifier {
         return m_format;
     }
     
+    public static VmAudioIdentifier fromFilename(String filename, String audioFormat) {
+    	for(VmAudioIdentifier identifier : values()) { 
+    		if(filename.endsWith(String.format(identifier.getFormat(), audioFormat))) {
+    			return identifier;
+    		}
+    	}
+    	
+    	return null;
+    }
+    
     public static VmAudioIdentifier lookUp(String name) {
         VmAudioIdentifier identifier = tryLookUp(name);
         if(identifier != null) {
