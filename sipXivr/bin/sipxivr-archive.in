@@ -26,7 +26,17 @@ class ArchiveBase
   def initialize
     @initd = "@SIPX_SERVICEDIR@"
     @sipxdata = "@SIPX_VARDIR@"
+    @bin_dir = '@SIPX_BINDIR@'
+    @backup_dir = '@SIPX_VARDIR@/backup'
+    @backup_tmp_dir = '@SIPX_TMPDIR@/backup'
+    @restore_dir = '@SIPX_TMPDIR@/restore'
+    @confdir = "@SIPX_CONFDIR@"
+    @mongo_client_ini = "#{@confdir}/mongo-client.ini"
     @ver = "@PACKAGE_VERSION@"
+    @mongo_properties = {}
+    IO.foreach("#{@mongo_client_ini}") do |line|
+    @mongo_properties[$1.strip] = $2 if line =~ /([^=]*)=(.*)\/\/(.*)/ || line =~ /([^=]*)=(.*)/
+    end
   end
 
   def cmd(cmd)
@@ -38,12 +48,17 @@ end
 
 class Backup < ArchiveBase
   def run(params)
-    File.open('version','w') { |f|
+    File.open("#{@backup_tmp_dir}/version",'w') { |f|
       f.puts @ver
     }
-    cmd "tar -cz -f #{params[:file]} version -C #{@sipxdata}/../.. var/sipxdata/mediaserver/data" or
+
+    cmd "mongodump --out #{@backup_tmp_dir}/dump --db vmdb -h #{@mongo_properties['connectionString']}" or
+      raise "Could not backup voicemail gridfs database"
+    cmd "tar -cz -f #{params[:file]} -C #{@backup_tmp_dir} version dump/ #{@sipxdata}/mediaserver/data" or
       raise "Unabled to archive voicemail #{params[:file]}"
-    FileUtils.rm('version')
+
+    #Clean temp files
+    FileUtils.rm_rf(["#{@backup_tmp_dir}/version", "#{@backup_tmp_dir}/dump"])
   end
 end
 
@@ -58,11 +73,26 @@ class Restore < ArchiveBase
 
     cmd "#{@initd}/sipxivr stop" if params[:restart]
 
-    cmd "tar -xz --exclude=version -C #{@sipxdata}/../.. -f #{params[:file]}" or
+    cmd "tar -xz --exclude=version --exclude=dump -C #{@sipxdata}/../.. -f #{params[:file]}" or
       raise "Failed to extract database from archive."
 
     cmd "chown @SIPXPBXUSER@:@SIPXPBXGROUP@ -R #{@sipxdata}/mediaserver/data" or
       raise "Failed to set permissions on mailstore dir."
+
+    cmd "tar -zxvf #{params[:file]} -C #{@backup_tmp_dir} dump" or
+      raise "Failed to extract voicemail database from archive"
+    
+    cmd "mongo vmdb --eval \"db.voicemail.files.remove({})\" --host #{@mongo_properties['connectionString']}"
+    cmd "mongo vmdb --eval \"db.voicemail.chunks.remove({})\" --host #{@mongo_properties['connectionString']}"
+    cmd "mongo vmdb --eval \"db.voicemail.metadata.remove({})\" --host #{@mongo_properties['connectionString']}"
+    
+    Dir.foreach("#{@backup_tmp_dir}/dump/vmdb") do |fname|
+      cmd "mongorestore --db vmdb #{@backup_tmp_dir}/dump/vmdb/#{fname} --host #{@mongo_properties['connectionString']}" or 
+        raise "Failed to restore voicemail dump"
+    end
+
+    #Clean temp files
+    FileUtils.rm_rf(["#{@backup_tmp_dir}/version", "#{@backup_tmp_dir}/dump"])
 
     cmd "#{@initd}/sipxivr start" if params[:restart]
   end
