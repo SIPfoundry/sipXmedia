@@ -281,7 +281,7 @@ public class VmEslRequestController extends AbstractEslRequestController {
         if (m_mailboxString != null) {
             // validate
             m_currentUser = m_validUsers.getUser(m_mailboxString);
-            if (m_currentUser == null) {
+            if (m_currentUser == null || !m_currentUser.hasVoicemail()) {
                 m_mailboxString = null;
             }
         }
