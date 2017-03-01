@@ -92,7 +92,7 @@ $(sipx:=.deps): %.deps :
 	  -e 's|@PACKAGE\@|SELF|g' \
 	  -e 's|@VERSION\@|0|g' \
 	  -e 's|@PACKAGE_REVISION\@|0|g' \
-	  $(SRC)/$(PROJ)/$(proj).spec* > delme
+	  $(SRC)/$(PROJ)/$(proj)-ng.spec* > delme
 	@$(RPMSPEC) -P delme 2>/dev/null | \
 	  egrep '^(Build|)Requires:' | \
 	    sed \
