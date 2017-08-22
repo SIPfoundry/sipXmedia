@@ -68,33 +68,67 @@ class Restore < ArchiveBase
   end
 
   def run(params)
-    cmd "tar -tzf #{params[:file]} version" or
-      raise "Verification failed. Could not determine format of #{params[:file]}"    
+    if params.has_key?(:tmp_dir)
+      @backup_tmp_dir=params[:tmp_dir]
+    end
+
+    pre_mongo = false
+    if cmd "tar -zxvf #{params[:file]} -C #{@backup_tmp_dir} version"
+      v = File.read("#{@backup_tmp_dir}/version").split(".")
+      dev = (v[0].to_i == '0'.to_i and v[1].to_i == '0'.to_i)
+      pre_mongo = !(dev or (v[0].to_i == '4'.to_i and v[1].to_i > '4'.to_i) or v[0].to_i > '4'.to_i or v[0].to_i >= '14'.to_i)
+    else
+      raise "Not a known archive, version file is missing."
+    end
 
     cmd "#{@initd}/sipxivr stop" if params[:restart]
 
-    cmd "tar -xz --exclude=version --exclude=dump -C #{@sipxdata}/../.. -f #{params[:file]}" or
-      raise "Failed to extract database from archive."
+    if !pre_mongo
+      cmd "tar -xz --exclude=version --exclude=dump -C #{@sipxdata}/../.. -f #{params[:file]}" or
+        raise "Failed to extract database from archive."
 
-    cmd "chown @SIPXPBXUSER@:@SIPXPBXGROUP@ -R #{@sipxdata}/mediaserver/data" or
-      raise "Failed to set permissions on mailstore dir."
+      cmd "chown @SIPXPBXUSER@:@SIPXPBXGROUP@ -R #{@sipxdata}/mediaserver/data" or
+        raise "Failed to set permissions on mailstore dir."
 
-    cmd "tar -zxvf #{params[:file]} -C #{@backup_tmp_dir} dump" or
-      raise "Failed to extract voicemail database from archive"
-    
-    cmd "mongo vmdb --eval \"db.voicemail.files.remove({})\" --host #{@mongo_properties['connectionString']}"
-    cmd "mongo vmdb --eval \"db.voicemail.chunks.remove({})\" --host #{@mongo_properties['connectionString']}"
-    cmd "mongo vmdb --eval \"db.voicemail.metadata.remove({})\" --host #{@mongo_properties['connectionString']}"
-    
-    Dir.foreach("#{@backup_tmp_dir}/dump/vmdb") do |fname|
-      cmd "mongorestore --db vmdb #{@backup_tmp_dir}/dump/vmdb/#{fname} --host #{@mongo_properties['connectionString']}" or 
-        raise "Failed to restore voicemail dump"
+      cmd "tar -zxvf #{params[:file]} -C #{@backup_tmp_dir} dump" or
+        raise "Failed to extract voicemail database from archive"
+      
+      cmd "mongo vmdb --eval \"db.voicemail.files.remove({})\" --host #{@mongo_properties['connectionString']}"
+      cmd "mongo vmdb --eval \"db.voicemail.chunks.remove({})\" --host #{@mongo_properties['connectionString']}"
+      cmd "mongo vmdb --eval \"db.voicemail.metadata.remove({})\" --host #{@mongo_properties['connectionString']}"
+      
+      Dir.foreach("#{@backup_tmp_dir}/dump/vmdb") do |fname|
+        cmd "mongorestore --db vmdb #{@backup_tmp_dir}/dump/vmdb/#{fname} --host #{@mongo_properties['connectionString']}" or 
+          raise "Failed to restore voicemail dump"
+      end
+
+      #check if migrated is OpenUC mongo
+      oucVm = %x[mongo vmdb --eval "db.fs.files.count({})" --quiet]
+      if oucVm.to_i > 0
+        cmd "echo Migrating OpenUC VM"
+        cmd "mongo vmdb @confdir/database/migrate-openuc-vm.js"
+        cmd "mongo vmdb --eval \"db.fs.files.remove({})\""
+        cmd "mongo vmdb --eval \"db.fs.chunks.remove({})\""
+      end
+
+    else
+      cmd "echo #{@sipxdata}"
+      cmd "tar -xz --exclude=version -f #{params[:file]} -C #{@sipxdata}/../.. var/sipxdata/mediaserver/data" or
+        raise "Failed to extract database from archive."
+      cmd "chown @SIPXPBXUSER@:@SIPXPBXGROUP@ -R #{@sipxdata}/mediaserver/data/mailstore" or
+        raise "Failed to set permissions on mailstore dir."
+      cmd "rm -f #{@sipxdata}/mediaserver/data/messageid.txt" or
+        raise "Failed to clean messageid."
     end
 
     #Clean temp files
     FileUtils.rm_rf(["#{@backup_tmp_dir}/version", "#{@backup_tmp_dir}/dump"])
 
-    cmd "#{@initd}/sipxivr start" if params[:restart]
+    if !pre_mongo
+      cmd "#{@initd}/sipxivr start" if params[:restart]
+    else
+      cmd "#{@initd}/sipxivr start --migrate #{@sipxdata}/mediaserver/data/mailstore" if params[:restart]
+    end
   end
 end
 
@@ -127,6 +161,10 @@ EOF
 
   opts.on("--verbose", "Show each command that is run.") {
     verbose = true
+  }
+
+  opts.on("--tmp-dir <tmp-dir>", "Temporary voicemail dump location") { |v|
+    params[:tmp_dir] = v
   }
 
   opts.separator ""
