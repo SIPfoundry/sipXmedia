@@ -48,6 +48,12 @@ end
 
 class Backup < ArchiveBase
   def run(params)
+    if params.has_key?(:tmp_dir)
+        @backup_tmp_dir=params[:tmp_dir]
+    end
+
+    cmd "mkdir -p #{@backup_tmp_dir}"
+
     File.open("#{@backup_tmp_dir}/version",'w') { |f|
       f.puts @ver
     }
@@ -71,6 +77,8 @@ class Restore < ArchiveBase
     if params.has_key?(:tmp_dir)
       @backup_tmp_dir=params[:tmp_dir]
     end
+
+    cmd "mkdir -p #{@backup_tmp_dir}"
 
     pre_mongo = false
     if cmd "tar -zxvf #{params[:file]} -C #{@backup_tmp_dir} version"
@@ -106,7 +114,7 @@ class Restore < ArchiveBase
       oucVm = %x[mongo vmdb --eval "db.fs.files.count({})" --quiet]
       if oucVm.to_i > 0
         cmd "echo Migrating OpenUC VM"
-        cmd "mongo vmdb @confdir/database/migrate-openuc-vm.js"
+        cmd "mongo vmdb #{@confdir}/database/migrate-openuc-vm.js"
         cmd "mongo vmdb --eval \"db.fs.files.remove({})\""
         cmd "mongo vmdb --eval \"db.fs.chunks.remove({})\""
       end
