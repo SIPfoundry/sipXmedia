@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
 
@@ -371,6 +372,16 @@ public class GridFSVmTemplate {
         m_gridFSTemplate.delete(new Query(
                     Criteria.where(MongoConstants.ID).is(id)
                 ));
+    }
+
+    public void cleanup(String username, Date deleteFrom) {
+        List<DBObject> vmMetadatas = doFindVMs(
+            new BasicDBObject(GridFSVmTemplate.USER, username)
+                .append(GridFSVmTemplate.TIMESTAMP, deleteFrom)
+                , null, null);
+        for(DBObject vmMetadata : vmMetadatas) {
+            delete(vmMetadata);
+        }
     }
     
     public void changeUser(User newUser, String oldUser) {

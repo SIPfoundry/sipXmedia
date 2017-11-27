@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.apache.commons.io.FileUtils;
@@ -11,6 +12,7 @@ import org.bson.types.ObjectId;
 import org.sipfoundry.commons.ivr.MimeType;
 import org.sipfoundry.commons.userdb.User;
 import org.sipfoundry.commons.userdb.User.EmailFormats;
+import org.sipfoundry.commons.util.TimeZoneUtils;
 import org.sipfoundry.voicemail.mailbox.gridfs.GridFSSequenceCounter;
 import org.sipfoundry.voicemail.mailbox.gridfs.GridFSVmTemplate;
 import org.sipfoundry.voicemail.mailbox.gridfs.VmAudioIdentifier;
@@ -309,6 +311,12 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
 	public void deleteMailbox(String username) {
 	    m_gridFSVmTemplate.delete(username);
 	}
+
+    @Override
+    public void cleanupMailbox(String userName, int daysToKeepVM) {
+        Date deleteFrom = TimeZoneUtils.getDateXDaysAgo(daysToKeepVM);
+        m_gridFSVmTemplate.cleanup(userName, deleteFrom);
+    }    
 
 	@Override
 	public void renameMailbox(User user, String oldUser) {
