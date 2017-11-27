@@ -377,7 +377,7 @@ public class GridFSVmTemplate {
     public void cleanup(String username, Date deleteFrom) {
         List<DBObject> vmMetadatas = doFindVMs(
             new BasicDBObject(GridFSVmTemplate.USER, username)
-                .append(GridFSVmTemplate.TIMESTAMP, deleteFrom)
+                .append(GridFSVmTemplate.TIMESTAMP, new BasicDBObject("$lt", deleteFrom.getTime()))
                 , null, null);
         for(DBObject vmMetadata : vmMetadatas) {
             delete(vmMetadata);
