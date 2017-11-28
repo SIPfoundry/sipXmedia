@@ -58,6 +58,7 @@
   <bean id="voicemailCleanup" class="org.sipfoundry.voicemail.mailbox.VoicemailCleanup">
     <property name="mailboxManager" ref="mailboxManager" />
     <property name="validUsers" ref="validUsers" />
+    <property name="deletedVMExpiry" value="${ivr.voiceMailExpiry}" />
   </bean>
 
   <task:scheduled-tasks>

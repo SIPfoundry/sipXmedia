@@ -634,21 +634,22 @@ public class FilesystemMailboxManager extends AbstractMailboxManager {
 
     @Override
     public void cleanupMailbox(String userName, int daysToKeepVM) {
-        Date deleteFrom = TimeZoneUtils.getDateXDaysAgo(daysToKeepVM);
         try {
-            File mailbox = getUserDirectory(userName);
-            File[] files = mailbox.listFiles();
-            for (File file : files) {
-                BasicFileAttributes attr = Files.readAttributes(file.toPath(), BasicFileAttributes.class);
-                FileTime fileCreationTime = attr.creationTime();
-                if (fileCreationTime.toMillis() < deleteFrom.getTime()) {
-                    file.delete();
-                }
-            }
+            cleanupMailbox(userName, getUserDirectory(userName), daysToKeepVM);
         } catch (Exception ex) {
             LOG.error(String.format("failed to delete mailbox for user %s", userName), ex);
         }
     }
+
+    @Override
+    public void cleanupTrash(String userName, int daysToKeepVM) {
+        try {
+            cleanupMailbox(userName, getFolder(userName, Folder.DELETED), daysToKeepVM);
+        } catch (Exception ex) {
+            LOG.error(String.format("failed to clean trash mailbox for user %s", userName), ex);
+        }
+    }
+
 
     @Override
     public void renameMailbox(User user, String oldUser) {
@@ -730,6 +731,22 @@ public class FilesystemMailboxManager extends AbstractMailboxManager {
         }
 
         return messageId;
+    }
+
+    private void cleanupMailbox(String userName, File mailbox, int daysToKeepVM) {
+        Date deleteFrom = TimeZoneUtils.getDateXDaysAgo(daysToKeepVM);
+        try {
+            File[] files = mailbox.listFiles();
+            for (File file : files) {
+                BasicFileAttributes attr = Files.readAttributes(file.toPath(), BasicFileAttributes.class);
+                FileTime fileCreationTime = attr.creationTime();
+                if (fileCreationTime.toMillis() < deleteFrom.getTime()) {
+                    file.delete();
+                }
+            }
+        } catch (Exception ex) {
+            LOG.error(String.format("failed to delete mailbox for user %s", userName), ex);
+        }
     }
 
     private static class FileFilterByMessageId implements FilenameFilter {

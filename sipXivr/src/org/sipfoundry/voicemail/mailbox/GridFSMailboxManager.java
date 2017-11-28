@@ -314,9 +314,21 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
 
     @Override
     public void cleanupMailbox(String userName, int daysToKeepVM) {
-        Date deleteFrom = TimeZoneUtils.getDateXDaysAgo(daysToKeepVM);
-        m_gridFSVmTemplate.cleanup(userName, deleteFrom);
-    }    
+        try {
+            m_gridFSVmTemplate.cleanup(userName, TimeZoneUtils.getDateXDaysAgo(daysToKeepVM));
+        } catch (Exception ex) {
+            LOG.error("cleanupMailbox Mongo Error " + ex.getMessage(), ex);
+        }
+    }
+
+    @Override
+    public void cleanupTrash(String userName, int daysToKeepVM) {
+        try {
+            m_gridFSVmTemplate.cleanup(userName, Folder.DELETED.getId(), TimeZoneUtils.getDateXDaysAgo(daysToKeepVM));    
+        } catch (Exception ex) {
+            LOG.error("cleanupTrash Mongo Error " + ex.getMessage(), ex);
+        }
+    }
 
 	@Override
 	public void renameMailbox(User user, String oldUser) {

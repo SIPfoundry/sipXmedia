@@ -24,6 +24,7 @@ public class VoicemailCleanup {
     private static final Log LOG = LogFactory.getLog(VoicemailCleanup.class);
     private MailboxManager m_mailboxManager;
     private ValidUsers m_validUsers;
+    private int m_deletedVMExpiry = 7;
 
     public void run() {
         LOG.warn("Starting Voicemail cleanup");
@@ -36,6 +37,8 @@ public class VoicemailCleanup {
             if (daysToKeepVM != null && daysToKeepVM != DISABLE_VOICEMAIL_CLEANUP) {
                 m_mailboxManager.cleanupMailbox(userName, daysToKeepVM);
             }
+
+            m_mailboxManager.cleanupTrash(userName, m_deletedVMExpiry);
         }
         cursor.close();
         LOG.warn("Finished Voicemail cleanup");
@@ -49,5 +52,9 @@ public class VoicemailCleanup {
     @Required
     public void setValidUsers(ValidUsers validUsers) {
         m_validUsers = validUsers;
+    }
+
+    public void setDeletedVMExpiry(int deletedVMExpiry) {
+        m_deletedVMExpiry = deletedVMExpiry;
     }
 }
