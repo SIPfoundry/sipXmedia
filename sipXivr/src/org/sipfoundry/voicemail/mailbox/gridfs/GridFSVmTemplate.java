@@ -19,6 +19,7 @@ import org.sipfoundry.voicemail.mailbox.MessageDescriptor;
 import org.sipfoundry.voicemail.mailbox.MessageDescriptor.Priority;
 import org.sipfoundry.voicemail.mailbox.TempMessage;
 import org.sipfoundry.voicemail.mailbox.VmMessage;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.MongoDbFactory;
 import org.springframework.data.mongodb.core.convert.MappingMongoConverter;
 import org.springframework.data.mongodb.core.convert.MongoConverter;
@@ -58,6 +59,7 @@ public class GridFSVmTemplate {
     public static final String CONTENT_LENGTH = "contentLength";
     public static final String VOICEMAIL_ID = "voicemailId";
     public static final String FILENAME = "filename";
+    public static final String UPLOAD_DATE = "uploadDate";
 
     public final static String DEFAULT_BUCKET = "voicemail";
     public final static String DEFAULT_METADATA = "metadata";
@@ -246,7 +248,9 @@ public class GridFSVmTemplate {
     }
     
     public List<DBObject> findByLabel(String username, String label, boolean unheardOnly) {
-        List<DBObject> results = findVMs(username, label, unheardOnly);
+        List<DBObject> results = findVMs(username, label, unheardOnly, null
+                , BasicDBObjectBuilder.start().add(UNHEARD, -1)
+                                              .add(TIMESTAMP, -1).get());
         return results != null && !results.isEmpty() ? results 
                                                     : new ArrayList<DBObject>();
     }
@@ -643,7 +647,7 @@ public class GridFSVmTemplate {
         Assert.notNull(voicemailId);
         return m_gridFSTemplate.find(new Query(
                     Criteria.where(METADATA_VOICEMAIL_ID).is(voicemailId)
-                ));
+                ).with(new Sort(Sort.Direction.DESC, UPLOAD_DATE)));
     }
     
     protected WriteResult doStoreVM(DBObject metadata) {

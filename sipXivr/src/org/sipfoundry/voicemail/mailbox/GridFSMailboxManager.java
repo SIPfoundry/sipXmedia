@@ -2,18 +2,20 @@ package org.sipfoundry.voicemail.mailbox;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 import org.apache.commons.io.FileUtils;
-import org.bson.types.ObjectId;
+import org.apache.commons.io.IOUtils;
 import org.sipfoundry.commons.ivr.MimeType;
 import org.sipfoundry.commons.userdb.User;
 import org.sipfoundry.commons.userdb.User.EmailFormats;
 import org.sipfoundry.commons.util.TimeZoneUtils;
+import org.sipfoundry.voicemail.mailbox.MessageDescriptor.Priority;
 import org.sipfoundry.voicemail.mailbox.gridfs.GridFSSequenceCounter;
+import org.sipfoundry.voicemail.mailbox.gridfs.GridFSVmMessage;
 import org.sipfoundry.voicemail.mailbox.gridfs.GridFSVmTemplate;
 import org.sipfoundry.voicemail.mailbox.gridfs.VmAudioIdentifier;
 import org.springframework.util.Assert;
@@ -355,13 +357,14 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
         }
         
         if (storageFolder == Folder.INBOX) {
-            m_mwi.sendMWI(destUser, getMailboxDetails(destUser.getUserName()));
+            MailboxDetails mwiDetails = getMailboxDetails(destUser.getUserName());
+            mwiDetails.incrementUnheardCount();
+            m_mwi.sendMWI(destUser, mwiDetails);
         }
         
         LOG.info("VmMessage::newMessage created gridfs message " + dbFile.getId());
         
-        ObjectId vmId = (ObjectId)dbFile.getMetaData().get(GridFSVmTemplate.VOICEMAIL_ID);
-        return getVmMessage(vmId, destUser, true);
+        return getVmMessage(messageId, destUser, tempAudio, descriptor);
 	}
 
 	@Override
@@ -379,6 +382,10 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
 	protected VmMessage copyMessage(String newMessageId, User destUser, TempMessage message) {
 	    DBObject vmMetadata = m_gridFSVmTemplate.findByMessageId(message.getCurrentUser(), message.getSavedMessageId());
 	    DBObject newVmMetadata = m_gridFSVmTemplate.copy(vmMetadata, destUser, Folder.INBOX.getId(), newMessageId, "Voice Message " + newMessageId);
+	    
+	    MailboxDetails mwiDetails = getMailboxDetails(destUser.getUserName());
+	    mwiDetails.incrementUnheardCount();
+        m_mwi.sendMWI(destUser, mwiDetails);
 	    return getVmMessage(newVmMetadata, destUser, true);
 	}
 
@@ -388,6 +395,7 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
 	    Assert.notNull(originalMessage);
 	    Assert.notNull(comments);
 	    
+	    MailboxDetails mwiDetails = getMailboxDetails(destUser.getUserName());
 	    if(comments.getTempPath() != null) {
     	    try (FileInputStream content = new FileInputStream(comments.getTempPath())) {
                 String filename = newMessageId + String.format(VmAudioIdentifier.CURRENT.getFormat(), getAudioFormat());
@@ -441,11 +449,10 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
                         , true);
             }
             
+            mwiDetails.incrementUnheardCount();
             m_mwi.sendMWI(destUser, getMailboxDetails(destUser.getUserName()));
             
-            DBObject forwardMetadata = m_gridFSVmTemplate.findByMessageId(destUser.getUserName()
-                    , Folder.INBOX.getId(), newMessageId);
-            return getVmMessage(forwardMetadata, destUser, true);
+            return getVmMessage(newMessageId + "-00", destUser, preferredAudio, descriptor);
         }
         
         return null;
@@ -456,10 +463,52 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
 		return nextMessageId(String.format(MESSAGEID_COUNTER_KEY_FORMAT
 		        , Integer.parseInt(getIvrIdentity())));
 	}
+
+	private VmMessage getVmMessage(String messageId, User destUser, File audioFile, MessageDescriptor descriptor) {
+	    //VmMessage.cleanup is called only if the Emailer process the request (this
+        //will only be triggered if the user has defined an email). Don't generated
+        //temp files if the User don't have an email address
+        if (destUser.getEmailFormat() != EmailFormats.FORMAT_NONE
+                || destUser.getAltEmailFormat() != EmailFormats.FORMAT_NONE) {
+            
+            if (audioFile != null) {
+                File attachAudioFile = new File(audioFile.getParent() + "/" + "email-" + audioFile.getName());
+                try {
+                    FileUtils.copyFile(audioFile, attachAudioFile);
+                } catch (IOException ex) {
+                    LOG.error("VmMessage::getVmMessage failed to create attach file email " + ex);
+                    return null;
+                }
+                
+                boolean urgent = descriptor.getPriority() == Priority.URGENT;
+                return new GridFSVmMessage(messageId, attachAudioFile, descriptor, urgent);
+            }
+        }
+        
+        return null;
+    }
 	
-	private VmMessage getVmMessage(ObjectId vmId, User destUser, boolean loadAudio) {
-	    DBObject vmMetadata = m_gridFSVmTemplate.findById(vmId);
-	    return getVmMessage(vmMetadata, destUser, loadAudio);
+	private VmMessage getVmMessage(String messageId, User destUser, GridFSDBFile vmAudio, MessageDescriptor descriptor) {
+        //VmMessage.cleanup is called only if the Emailer process the request (this
+        //will only be triggered if the user has defined an email). Don't generated
+        //temp files if the User don't have an email address
+        if (destUser.getEmailFormat() != EmailFormats.FORMAT_NONE
+                || destUser.getAltEmailFormat() != EmailFormats.FORMAT_NONE) {
+            
+            File tempAudio = null;
+            try {
+                TempMessage tempMessage = createTempMessage(destUser.getUserName(), null, true);
+                tempAudio = new File(tempMessage.getTempPath());
+                IOUtils.copy(vmAudio.getInputStream(), new FileOutputStream(tempAudio));    
+            } catch(Exception ex) {
+                LOG.error("VmMessage::forwardMessage: Failed to generate temp audio file", ex);
+                return null;
+            }
+            
+            return getVmMessage(messageId, destUser, tempAudio, descriptor);
+        }
+        
+        return null;
     }
 	
 	private VmMessage getVmMessage(DBObject vmMetadata, User destUser, boolean loadAudio) {
