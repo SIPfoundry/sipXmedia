@@ -170,7 +170,7 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
 	public void removeDeletedMessages(String username) {
 		List<DBObject> vmMetadatas = m_gridFSVmTemplate.findByLabel(username, Folder.DELETED.getId());
 		for(DBObject vmMetadata : vmMetadatas) {
-		    m_gridFSVmTemplate.delete(vmMetadata);;
+		    m_gridFSVmTemplate.delete(vmMetadata);
 		}
 	}
 
@@ -302,11 +302,7 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
 
 	@Override
 	public void moveMessageToFolder(User user, String messageId, String destination) {
-	    DBObject vmMetadata = m_gridFSVmTemplate.findByMessageId(user.getUserName(), messageId);
-        if(vmMetadata != null) {
-            vmMetadata.put(GridFSVmTemplate.LABEL, destination);
-            m_gridFSVmTemplate.storeVM(vmMetadata);
-        }
+	    m_gridFSVmTemplate.move(user, messageId, destination);
 	}
 
 	@Override
@@ -420,10 +416,15 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
             MessageDescriptor preferredAudioDescriptor = m_gridFSVmTemplate.createMessageDescriptor(preferredAudio);
             
             String originalFilename = newMessageId + String.format(VmAudioIdentifier.ORIGINAL.getFormat(), getAudioFormat());
-            m_gridFSVmTemplate.store(preferredAudio.getInputStream(), originalFilename, MimeType.getMimeByFormat(getAudioFormat())
-                    , VmAudioIdentifier.ORIGINAL, Folder.INBOX.getId(), newMessageId
-                    , destUser.getUserName(), copyMediaDescription(descriptor, preferredAudioDescriptor)
-                    , true);
+            try {
+                m_gridFSVmTemplate.store(preferredAudio.getInputStream(), originalFilename, MimeType.getMimeByFormat(getAudioFormat())
+                        , VmAudioIdentifier.ORIGINAL, Folder.INBOX.getId(), newMessageId
+                        , destUser.getUserName(), copyMediaDescription(descriptor, preferredAudioDescriptor)
+                        , true);
+            } catch(Exception ex) {
+                LOG.error("Unable to store forward original message audio: " + ex.getMessage(), ex);
+                return null;
+            }
             
             String combinedFilename = newMessageId + String.format(VmAudioIdentifier.COMBINED.getFormat(), getAudioFormat());
             if(comments.getTempPath() != null) {
@@ -442,20 +443,23 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
                     FileUtils.deleteQuietly(combinedFile);
                 }
             } else {
-                m_gridFSVmTemplate.store(preferredAudio.getInputStream(), combinedFilename
-                        , MimeType.getMimeByFormat(getAudioFormat())
-                        , VmAudioIdentifier.COMBINED, Folder.INBOX.getId()
-                        , newMessageId, destUser.getUserName(), descriptor
-                        , true);
+                try {
+                    m_gridFSVmTemplate.store(preferredAudio.getInputStream(), combinedFilename
+                            , MimeType.getMimeByFormat(getAudioFormat())
+                            , VmAudioIdentifier.COMBINED, Folder.INBOX.getId()
+                            , newMessageId, destUser.getUserName(), descriptor
+                            , true);    
+                } catch(Exception ex) {
+                    LOG.error("Unable to store forward preferred message audio: " + ex.getMessage(), ex);
+                    return null;
+                }
+                
             }
-            
-            mwiDetails.incrementUnheardCount();
-            m_mwi.sendMWI(destUser, getMailboxDetails(destUser.getUserName()));
-            
-            return getVmMessage(newMessageId + "-00", destUser, preferredAudio, descriptor);
         }
         
-        return null;
+        mwiDetails.incrementUnheardCount();
+        m_mwi.sendMWI(destUser, getMailboxDetails(destUser.getUserName()));
+        return getVmMessage(newMessageId + "-00", destUser, preferredAudio, descriptor);
 	}
 
 	@Override

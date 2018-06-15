@@ -159,6 +159,15 @@ public class Deposit extends AbstractVmAction implements ApplicationContextAware
                                 goodbye();
                                 return null;
                             }
+                        } else if (choice == null) {
+                            // If choice is set to null, either the 
+                            // User is transferred to the operator 
+                            // or call is handled already
+                            
+                            // Message should not be stored since user might intend to cancel
+                            // but accidentally presses '0' for operator...
+                            tempMessage.setIsToBeStored(false);
+                            return null;
                         }
 
                         String digit = choice.getDigits();

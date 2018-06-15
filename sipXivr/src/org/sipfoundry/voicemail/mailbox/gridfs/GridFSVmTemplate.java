@@ -60,6 +60,7 @@ public class GridFSVmTemplate {
     public static final String VOICEMAIL_ID = "voicemailId";
     public static final String FILENAME = "filename";
     public static final String UPLOAD_DATE = "uploadDate";
+    public static final String MOVE_DATE = "moveDate";
 
     public final static String DEFAULT_BUCKET = "voicemail";
     public final static String DEFAULT_METADATA = "metadata";
@@ -389,10 +390,16 @@ public class GridFSVmTemplate {
     }
 
     public void cleanup(String username, String label, Date deleteFrom) {
+        String timestamp = GridFSVmTemplate.TIMESTAMP;
+        // Use move date when cleaning up
+        if(Folder.tryLookUp(label) == Folder.DELETED) {
+            timestamp = GridFSVmTemplate.MOVE_DATE;
+        }
+        
         List<DBObject> vmMetadatas = doFindVMs(
             new BasicDBObject(GridFSVmTemplate.USER, username)
                 .append(GridFSVmTemplate.LABEL, label)
-                .append(GridFSVmTemplate.TIMESTAMP, new BasicDBObject("$lt", deleteFrom.getTime()))
+                .append(timestamp, new BasicDBObject("$lt", deleteFrom.getTime()))
                 , null, null);
         for(DBObject vmMetadata : vmMetadatas) {
             delete(vmMetadata);
@@ -707,6 +714,9 @@ public class GridFSVmTemplate {
         if(markAsHeard) {
             vmMetadata.put(UNHEARD, false);
         }
+        
+        vmMetadata.put(MOVE_DATE, System.currentTimeMillis());
+        
         doStoreVM(vmMetadata);
     }
     
