@@ -25,7 +25,7 @@ import org.apache.log4j.PropertyConfigurator;
 import org.sipfoundry.commons.log4j.SipFoundryLayout;
 import org.sipfoundry.voicemail.mailbox.MailboxManager;
 import org.springframework.beans.BeansException;
-import org.springframework.context.ApplicationContext;
+import org.springframework.context.support.AbstractApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 
 public abstract class SipXivrServer {
@@ -35,8 +35,7 @@ public abstract class SipXivrServer {
     protected abstract SipXivr getSipxIvrHandler();
 
     public void runServer() {
-        try {
-            ServerSocket serverSocket = new ServerSocket(m_eventSocketPort);
+        try (ServerSocket serverSocket = new ServerSocket(m_eventSocketPort)) {
             for (;;) {
                 Socket client = serverSocket.accept();
                 SipXivr sipxIvr = getSipxIvrHandler();
@@ -45,8 +44,7 @@ public abstract class SipXivrServer {
                 thread.start();
             }
         } catch (IOException ex) {
-            System.out.println("FAILED TO START IVR SERVER" + ex);
-            ex.printStackTrace();
+            LOG.error("FAILED TO START IVR SERVER" + ex, ex);
             System.exit(1);
         }
     }
@@ -61,11 +59,10 @@ public abstract class SipXivrServer {
      * @param args
      */
     public static void main(String[] args) {
-        try {
-            initSystemProperties();
-            ApplicationContext context = new ClassPathXmlApplicationContext(new String[] {
+        String classpathXml[] = new String[] {
                 "classpath:/org/sipfoundry/sipxivr/system.beans.xml",
                 "classpath:/org/sipfoundry/sipxivr/imdb.beans.xml",
+                "classpath:/org/sipfoundry/sipxivr/transcription/transcription.beans.xml",
                 "classpath:/org/sipfoundry/sipxivr/email/email.beans.xml",
                 "classpath:/org/sipfoundry/attendant/attendant.beans.xml",
                 "classpath:/org/sipfoundry/bridge/bridge.beans.xml",
@@ -75,7 +72,9 @@ public abstract class SipXivrServer {
                 "classpath:/org/sipfoundry/sipxivr/rest/rest.beans.xml",
                 "classpath:/org/sipfoundry/voicemail/mailbox/mailbox.beans.xml",
                 "classpath*:/sipxivrplugin.beans.xml"
-            });
+            };
+        try(AbstractApplicationContext context = new ClassPathXmlApplicationContext(classpathXml)) {
+            initSystemProperties();
             SipXivrServer socket = (SipXivrServer) context.getBean("sipxIvrServer");
             for (int i = 0; i < args.length; i++) {
                 if (args[i].equalsIgnoreCase("--migrate")) {

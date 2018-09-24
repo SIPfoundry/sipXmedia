@@ -16,6 +16,11 @@ import org.apache.commons.lang.StringUtils;
 import org.sipfoundry.commons.userdb.User;
 import org.sipfoundry.commons.userdb.ValidUsers;
 import org.sipfoundry.sipxivr.SipxIvrConfiguration;
+import org.sipfoundry.sipxivr.transcription.LanguageCode;
+import org.sipfoundry.sipxivr.transcription.RecognitionException;
+import org.sipfoundry.sipxivr.transcription.Speech;
+import org.sipfoundry.sipxivr.transcription.Transcript;
+import org.sipfoundry.voicemail.mailbox.TempMessage;
 import org.sipfoundry.voicemail.mailbox.VmMessage;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -27,6 +32,7 @@ public class EmailFormatter implements ApplicationContextAware {
     private User m_user;
     private ApplicationContext m_context;
     private SipxIvrConfiguration m_ivrConfig;
+    private Speech m_speech;
     
     /**
      * A formatter for e-mail messages.
@@ -41,7 +47,7 @@ public class EmailFormatter implements ApplicationContextAware {
     public void init(User user, VmMessage vmessage) {
         m_user = user;
         String fromDisplay = null;
-        Object[] args = new Object[17];
+        Object[] args = new Object[19];
         String fromUri = "";
         String fromUser = "";
         
@@ -79,10 +85,63 @@ public class EmailFormatter implements ApplicationContextAware {
         args[13] = fmt("SubjectMedium", args);                  // 13 Subject (for Medium)
         args[14] = fmt("SubjectBrief", args);                   // 14 Subject (for Brief)
         args[15] = String.format(getDeleteUrl(), args[4], m_user.getUserName(), args[5]);
-        args[16] = String.format(getPlayUrl(), args[4], m_user.getUserName(), args[5]);        
+        args[16] = String.format(getPlayUrl(), args[4], m_user.getUserName(), args[5]);
+        args[17] = "";
+        args[18] = "0";
         m_args = args;
     }
-
+    
+    public void init(User user, String displayUri) {
+        m_user = user;
+        String fromDisplay = null;
+        Object[] args = new Object[19];
+        String fromUri = "";
+        String fromUser = "";
+        
+        if(displayUri != null) {
+            fromUri = displayUri;
+            fromUser = ValidUsers.getUserPart(fromUri);
+            fromDisplay = ValidUsers.getDisplayPart(fromUri);         
+        }
+        
+        if (fromDisplay==null) {
+            fromDisplay = "";
+        }
+        
+        // Build original set of args
+       
+        args[ 0] = fromUri;                                     //  1 From URI
+        args[ 1] = fromUser;                                    //  2 From User Part (phone number, most likely)
+        args[ 2] = fromDisplay;                                 //  3 From Display Name
+        args[ 3] = new Date();
+        args[ 4] = fmt("PortalURL", args);
+        if (args[ 4] == null || StringUtils.equals("null", (String) args[ 4])) {
+            args[ 4] = m_emailAddressUrl;
+        }
+                                                                //  4 Portal Link URL             
+        // Using the existing args, add some more, recursively as they are defined with some of the above variables.
+        args[ 5] = fmt("SenderName", args);                     //  7 Sender Name
+        args[ 6] = fmt("SenderMailto", args);                   //  8 Sender mailto
+        args[ 7] = fmt("HtmlMissCallTitle", args);                      //  9 html title
+        
+        args[8] = String.format(getInboxUrl(), args[ 4]);      // 10 Portal URL (if needs to be re-written)
+        args[9] = fmt("SenderMissCall", args);                         // 11 Sender (as url'ish)
+        args[10] = fmt("SubjectMissCallFull", args);                    // 12 Subject (for Full)
+        args[11] = fmt("SubjectMissCallMedium", args);                  // 13 Subject (for Medium)
+        args[12] = fmt("SubjectMissCallBrief", args);                   // 14 Subject (for Brief)
+        m_args = args;
+    }
+    
+    public void tryTranscribe(VmMessage vmessage) throws RecognitionException {
+        if (m_user.isTranscribeVoicemail()) {
+            LanguageCode lang = LanguageCode.tryFromString(m_user.getTranscribeLanguage(), LanguageCode.EN_US);
+            Transcript transcript = m_speech.recognize(vmessage.getAudioFile(), lang);
+            if (transcript != null) {
+                m_args[17] = transcript.getContent();
+                m_args[18] = new Integer(transcript.getConfidence()).toString();
+            }    
+        }
+    }
 
     public String fmt(String text) {
         return fmt(text, m_args);
@@ -105,7 +164,7 @@ public class EmailFormatter implements ApplicationContextAware {
     private String getPlayUrl() {
         return "%s/sipxconfig/rest/my/redirect/media/%s/inbox/%s";
     }
-
+    
     private String fmt(String text, Object[] args) {
         String value = "";
         if (text == null) {
@@ -121,6 +180,10 @@ public class EmailFormatter implements ApplicationContextAware {
     
     public String getSender() {
         return fmt("Sender");
+    }
+    
+    public String getSenderMissCall() {
+        return fmt("SenderMissCall");
     }
     
     /**
@@ -146,6 +209,46 @@ public class EmailFormatter implements ApplicationContextAware {
     public String getTextBody() {
         return fmt("TextBodyFull");
     }
+    
+    /**
+     * The HTML body part of the e-mail with transcript.  
+     * @return null or "" if there is none
+     */
+    public String getHtmlTranscript() {
+        return fmt("HtmlTranscriptFull");
+    }
+
+    /**
+     * The text body part of the e-mail with transcript
+     * @return
+     */
+    public String getTextTranscript() {
+        return fmt("TextTranscriptFull");
+    }
+    
+    /**
+     * The HTML body part of the e-mail for miss calls.  
+     * @return null or "" if there is none
+     */
+    public String getHtmlMissCall() {
+        return fmt("HtmlMissCallFull");
+    }
+    
+    /**
+     * The Subject part of the e-mail for miss calls
+     * @return
+     */
+    public String getSubjectMissCall() {
+        return fmt("SubjectMissCallFull");
+    }
+
+    /**
+     * The text body part of the e-mail for miss calls.
+     * @return
+     */
+    public String getTextMissCall() {
+        return fmt("TextMissCallFull");
+    }
 
     public void setEmailAddressUrl(String emailAddressUrl) {
         m_emailAddressUrl = emailAddressUrl;
@@ -159,5 +262,13 @@ public class EmailFormatter implements ApplicationContextAware {
 
     public void setIvrConfig(SipxIvrConfiguration ivrConfig) {
         m_ivrConfig = ivrConfig;
-    }       
+    }
+    
+    public boolean isTranscript() {
+        return m_user != null ? m_user.isTranscribeVoicemail() : false;
+    }
+    
+    public void setSpeech(Speech speech) {
+        m_speech = speech;
+    }
 }

@@ -10,21 +10,27 @@
   <bean id="FULL" class="org.sipfoundry.sipxivr.email.EmailFormatter" scope="prototype">
     <property name="emailAddressUrl" value="${ivr.emailAddressUrl}" />
     <property name="ivrConfig" ref="ivrConfig"/>
+    <property name="speech" ref="speech"/>
   </bean>
 
   <bean id="BRIEF" class="org.sipfoundry.sipxivr.email.EmailFormatterBrief" scope="prototype">
     <property name="emailAddressUrl" value="${ivr.emailAddressUrl}" />
     <property name="ivrConfig" ref="ivrConfig"/>
+    <property name="speech" ref="speech"/>
   </bean>
 
   <bean id="IMAP" class="org.sipfoundry.sipxivr.email.EmailFormatterImap" scope="prototype">
     <property name="emailAddressUrl" value="${ivr.emailAddressUrl}" />
     <property name="ivrConfig" ref="ivrConfig"/>
+    <property name="speech" ref="speech"/>
   </bean>
 
   <bean id="MEDIUM" class="org.sipfoundry.sipxivr.email.EmailFormatterMedium" scope="prototype">
     <property name="emailAddressUrl" value="${ivr.emailAddressUrls}" />
     <property name="ivrConfig" ref="ivrConfig"/>
+    <property name="speech" ref="speech"/>
   </bean>
+  
+  
 
 </beans>

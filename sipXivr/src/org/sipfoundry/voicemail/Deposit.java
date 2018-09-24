@@ -23,6 +23,7 @@ import org.sipfoundry.commons.userdb.User;
 import org.sipfoundry.sipxivr.common.DialByNameChoice;
 import org.sipfoundry.sipxivr.common.IvrChoice;
 import org.sipfoundry.sipxivr.common.IvrChoice.IvrChoiceReason;
+import org.sipfoundry.sipxivr.email.Emailer;
 import org.sipfoundry.voicemail.mailbox.MailboxManager;
 import org.sipfoundry.voicemail.mailbox.TempMessage;
 import org.springframework.context.ApplicationContext;
@@ -30,11 +31,12 @@ import org.springframework.context.ApplicationContextAware;
 
 public class Deposit extends AbstractVmAction implements ApplicationContextAware {
     static final Logger LOG = Logger.getLogger("org.sipfoundry.sipxivr");
-    private String m_sendIMUrl;
+    private Emailer m_emailer;
     private Map<String, String> m_depositMap;
     private ApplicationContext m_appContext;
     private String m_operatorAddr;
     private boolean m_hzEnabled;
+    private int m_minVoicemailRecording = 1;
     private ExecutorService m_executorService = Executors.newSingleThreadExecutor();
     /**
      * The depositVoicemail dialog
@@ -230,10 +232,17 @@ public class Deposit extends AbstractVmAction implements ApplicationContextAware
 
             if (tempMessage != null) {
                 // Deliver message that is pending; don't store "click" messages
-                if (tempMessage.getDuration() > 1) {
+                if (tempMessage.getDuration() > m_minVoicemailRecording) {
                     m_mailboxManager.storeInInbox(user, tempMessage);
+                } else {
+                    // Considered as miss call email.
+                    m_emailer.queueMissCallEmail(user, getDisplayUri());
                 }
                 m_mailboxManager.deleteTempMessage(tempMessage);
+            } else {
+                // Probably a miss call...
+                // Generate miss call mail if needed
+                m_emailer.queueMissCallEmail(user, getDisplayUri());
             }
         }
         return null;
@@ -270,7 +279,7 @@ public class Deposit extends AbstractVmAction implements ApplicationContextAware
                     "disconnected without leaving a voice message.", user.getLocale());
             if (tempMessage != null) {
 
-                if (tempMessage.isToBeStored() && tempMessage.getDuration() > 1) {
+                if (tempMessage.isToBeStored() && tempMessage.getDuration() > m_minVoicemailRecording) {
                     description = m_appContext.getMessage("just_left_msg", null, "just left a voice message.",
                             user.getLocale());
                 }
@@ -331,10 +340,6 @@ public class Deposit extends AbstractVmAction implements ApplicationContextAware
         return true;
     }
 
-    public void setSendImUrl(String url) {
-        m_sendIMUrl = url;
-    }
-
     public void setHzEnabled(boolean enabled) {
         m_hzEnabled = enabled;
     }
@@ -345,6 +350,14 @@ public class Deposit extends AbstractVmAction implements ApplicationContextAware
 
     public void setDepositMap(Map depositMap) {
         m_depositMap = depositMap;
+    }
+    
+    public void setEmailer(Emailer emailer) {
+        m_emailer = emailer;
+    }
+    
+    public void setMinVoicemailRecording(int duration) {
+        m_minVoicemailRecording = duration;
     }
 
     @Override

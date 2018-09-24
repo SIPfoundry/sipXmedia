@@ -42,6 +42,33 @@ public class EmailFormatterImap extends EmailFormatter {
     public String getTextBody() {
         return null;
     }
+    
+    /**
+     * The Subject part of the e-mail for miss calls
+     * @return
+     */
+    @Override
+    public String getSubjectMissCall() {
+        return null;
+    }
+    
+    /**
+     * The text body part of the e-mail with transcript
+     * @return
+     */
+    @Override
+    public String getHtmlTranscript() {
+        return null;
+    }
+    
+    /**
+     * The text body part of the e-mail with transcript
+     * @return
+     */
+    @Override
+    public String getTextTranscript() {
+        return null;
+    }
 }
 
 

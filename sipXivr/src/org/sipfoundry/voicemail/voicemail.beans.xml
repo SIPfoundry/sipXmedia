@@ -23,13 +23,14 @@
   </bean>
 
   <bean id="depositAction" class="org.sipfoundry.voicemail.Deposit" scope="eslRequest">
-    <property name="sendImUrl" value="${ivr.sendIMUrl}" />
     <property name="eslRequestController" ref="vmEslRequestController" />
     <property name="depositMap" ref="depositMap" />
     <property name="mailboxManager" ref="mailboxManager" />
     <property name="validUsers" ref="validUsers" />
     <property name="operatorAddr" value="${ivr.operatorAddr}" />
-    <property name="hzEnabled" value="${ivr.hzEnabled}" />    
+    <property name="hzEnabled" value="${ivr.hzEnabled}" />
+    <property name="emailer" ref="emailer" />
+    <property name="minVoicemailRecording" value="${ivr.minVoicemailRecording}" />
   </bean>
 
   <bean id="depositMap" class="java.util.HashMap" />

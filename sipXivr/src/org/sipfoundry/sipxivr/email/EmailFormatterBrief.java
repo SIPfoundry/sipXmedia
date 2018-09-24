@@ -41,4 +41,44 @@ public class EmailFormatterBrief extends EmailFormatter {
     public String getTextBody() {
         return fmt("TextBodyBrief");
     }
+    
+    /**
+     * The HTML body part of the e-mail.  
+     * @return null or "" if there is none
+     */
+    public String getHtmlTranscript() {
+        return fmt("HtmlTranscriptBrief");
+    }
+
+    /**
+     * The text body part of the e-mail
+     * @return
+     */
+    public String getTextTranscript() {
+        return fmt("TextTranscriptBrief");
+    }
+    
+    /**
+     * The Subject part of the e-mail for miss calls
+     * @return
+     */
+    public String getSubjectMissCall() {
+        return fmt("SubjectMissCallBrief");
+    }    
+    
+    /**
+     * The HTML body part of the e-mail for miss calls.  
+     * @return null or "" if there is none
+     */
+    public String getHtmlMissCall() {
+        return fmt("HtmlMissCallBrief");
+    }
+
+    /**
+     * The text body part of the e-mail for miss calls.
+     * @return
+     */
+    public String getTextMissCall() {
+        return fmt("TextMissCallBrief");
+    }    
 }

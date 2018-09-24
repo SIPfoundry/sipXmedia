@@ -24,6 +24,7 @@ import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.sipfoundry.commons.userdb.User;
 import org.sipfoundry.commons.userdb.User.EmailFormats;
@@ -67,7 +68,23 @@ public class Emailer implements ApplicationContextAware {
                 return;
             }
             LOG.info("Emailer::queueVm2Email queuing e-mail for " + destUser.getIdentity());
-            BackgroundMailer bm = new BackgroundMailer(destUser, vmessage);
+            BackgroundVMMailer bm = new BackgroundVMMailer(destUser, vmessage);
+            submit(bm);
+        }
+    }
+    
+    /**
+     * Queue up sending info on miss call as an e-mail to the addresses specified in the mailbox
+     *
+     * @param mailbox
+     * @param vmessage
+     */
+    public void queueMissCallEmail(User destUser, String fromUri) {
+        if (destUser.isNotifyMissCalls() &&
+                (destUser.getEmailFormat() != EmailFormats.FORMAT_NONE
+                || destUser.getAltEmailFormat() != EmailFormats.FORMAT_NONE))  {
+            LOG.info("Emailer::queueMissCallEmail queuing e-mail for " + destUser.getIdentity());
+            BackgroundMissCallMailer bm = new BackgroundMissCallMailer(destUser, fromUri);
             submit(bm);
         }
     }
@@ -75,11 +92,11 @@ public class Emailer implements ApplicationContextAware {
     /**
      * The Runnable class that builds and sends the e-mail
      */
-    class BackgroundMailer implements Runnable {
+    class BackgroundVMMailer implements Runnable {
         VmMessage m_vmessage;
         User m_user;
 
-        BackgroundMailer(User destUser, VmMessage vmessage) {
+        BackgroundVMMailer(User destUser, VmMessage vmessage) {
             m_vmessage = vmessage;
             m_user = destUser;
         }
@@ -106,6 +123,13 @@ public class Emailer implements ApplicationContextAware {
 
             String htmlBody = emf.getHtmlBody();
             String textBody = emf.getTextBody();
+
+            // Load transcript email body templates if user is configured to transcribe audio
+            // and email template is provided for transcript
+            if (m_user.isTranscribeVoicemail()) {
+                htmlBody = !StringUtils.isBlank(emf.getHtmlTranscript()) ? emf.getHtmlTranscript() : htmlBody;
+                textBody = !StringUtils.isBlank(emf.getTextTranscript()) ? emf.getTextTranscript() : textBody;
+            }
 
             // Use multipart/alternative if we are attaching audio or there is an html body part
             if (attachAudio || htmlBody != null && htmlBody.length() > 0) {
@@ -179,13 +203,13 @@ public class Emailer implements ApplicationContextAware {
             String to = m_user.getEmailAddress();
             String alt = m_user.getAltEmailAddress();
 
-            LOG.debug("Emailer::run started");
-
+            LOG.debug("Emailer::run started (voicemail)");
+            
             EmailFormats fmt = m_user.getEmailFormat();
             // Send to the main e-mail address
             if (fmt != EmailFormats.FORMAT_NONE) {
                 try {
-                    boolean attachAudio = m_user.isAttachAudioToEmail();
+                     boolean attachAudio = m_user.isAttachAudioToEmail();
                     LOG.info(String.format("Emailer::run sending message %s as %s email to %s %s audio",
                             m_vmessage.getMessageId(), fmt.toString(), to, attachAudio ? "with" : "without"));
                     EmailFormatter emf = getEmailFormatter(fmt, m_user, m_vmessage);
@@ -223,7 +247,103 @@ public class Emailer implements ApplicationContextAware {
                 }
             }
             m_vmessage.cleanup();
-            LOG.debug("Emailer::run finished");
+            LOG.debug("Emailer::run finished (voicemail)");
+        }
+    }
+    
+    class BackgroundMissCallMailer implements Runnable {
+        String m_fromUri;
+        User m_user;
+        
+        public BackgroundMissCallMailer(User user, String fromUri) {
+            this.m_user = user;
+            this.m_fromUri = fromUri;
+        }
+        
+        /**
+         * Build up the MIME multipart formatted e-mail
+         *
+         * @param attachAudio Attach the audio file as part of the message
+         * @return
+         * @throws AddressException
+         * @throws MessagingException
+         */
+        javax.mail.Message buildMessage(EmailFormatter emf) throws AddressException,
+                MessagingException, IOException {
+            MimeMessage message = new MimeMessage(m_session);
+            message.setFrom(new InternetAddress(emf.getSenderMissCall()));
+
+            message.setSubject(emf.getSubjectMissCall(), "UTF-8");
+
+            message.addHeader("X-SIPX-FROMURI", m_fromUri);
+            message.addHeader("X-SIPX-MBXID", m_user.getUserName());
+            message.addHeader("X-SIPX-MSG", "yes");
+
+            String htmlBody = emf.getHtmlMissCall();
+            String textBody = emf.getTextMissCall();
+
+            // Use multipart/alternative if we are attaching audio or there is an html body part
+            if (htmlBody != null && htmlBody.length() > 0) {
+                // Create an "mulipart/alternative" part with text and html alternatives
+                MimeMessageHelper helper = new MimeMessageHelper(message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED);
+
+                if (textBody != null && textBody.length() > 0) {
+                    // Add the text part of the message first
+                    helper.setText(textBody); // UTF-8 in case there's Unicode in there
+                }
+                
+                if (htmlBody != null && htmlBody.length() > 0) {
+                    // Add the HTML part of the message
+                    helper.setText(htmlBody, true);
+                }
+
+            } else {
+                if (textBody != null && textBody.length() > 0) {
+                    // Just a text part, use a simple message
+                    message.setText(textBody, "UTF-8");
+                }
+            }
+
+            return message;
+        }
+
+        @Override
+        public void run() {
+            String to = m_user.getEmailAddress();
+            String alt = m_user.getAltEmailAddress();
+
+            LOG.debug("Emailer::run started (miss call)");
+            
+            EmailFormats fmt = m_user.getEmailFormat();
+            // Send to the main e-mail address
+            if (fmt != EmailFormats.FORMAT_NONE) {
+                try {
+                    LOG.info(String.format("Emailer::run sending miss call message as %s email to %s",
+                            fmt.toString(), to));
+                    EmailFormatter emf = getEmailFormatter(fmt, m_user, m_fromUri);
+                    javax.mail.Message message = buildMessage(emf);
+                    message.addRecipient(MimeMessage.RecipientType.TO, new InternetAddress(to));
+                    Transport.send(message);
+                } catch (Exception e) {
+                    LOG.error("Emailer::run problem sending email.", e);
+                }
+            }
+
+            // Send to the alternate e-mail address
+            fmt = m_user.getAltEmailFormat();
+            if (fmt != EmailFormats.FORMAT_NONE) {
+                try {
+                    LOG.info(String.format("Emailer::run sending miss call message as %s email to %s",
+                            fmt.toString(), alt));
+                    EmailFormatter emf = getEmailFormatter(fmt, m_user, m_fromUri);
+                    javax.mail.Message message = buildMessage(emf);
+                    message.addRecipient(MimeMessage.RecipientType.TO, new InternetAddress(alt));
+                    Transport.send(message);
+                } catch (Exception e) {
+                    LOG.error("Emailer::run problem sending alternate email.", e);
+                }
+            }
+            LOG.debug("Emailer::run finished (miss call)");
         }
     }
 
@@ -238,10 +358,25 @@ public class Emailer implements ApplicationContextAware {
     private EmailFormatter getEmailFormatter(EmailFormats emailFormat, User user, VmMessage vmessage) {
         EmailFormatter formatter = m_context.getBean(emailFormat.getId(), EmailFormatter.class);
         formatter.init(user, vmessage);
+        try {
+            formatter.tryTranscribe(vmessage);
+        } catch (Exception e) {
+            LOG.error("Emailer::run problem transcribing audio.", e);
+        }
+        return formatter;
+    }
+    
+    private EmailFormatter getEmailFormatter(EmailFormats emailFormat, User user, String fromUri) {
+        EmailFormatter formatter = m_context.getBean(emailFormat.getId(), EmailFormatter.class);
+        formatter.init(user, fromUri);
         return formatter;
     }
 
-    public void submit(BackgroundMailer bm) {
+    public void submit(BackgroundVMMailer bm) {
+        m_es.submit(bm);
+    }
+    
+    public void submit(BackgroundMissCallMailer bm) {
         m_es.submit(bm);
     }
 
