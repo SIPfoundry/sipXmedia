@@ -586,6 +586,13 @@ public class GridFSVmTemplate {
         descriptor.setSubject(basicVmMetadata.getString(SUBJECT, StringUtils.EMPTY));
         descriptor.setTimestamp(basicVmMetadata.getLong(TIMESTAMP, 0));
         descriptor.setPriority(Priority.valueOfById(basicVmMetadata.getString(PRIORITY, Priority.NORMAL.getId())));
+
+        // We only mark the update timestamp based on move date.
+        long updateTimestamp = basicVmMetadata.getLong(MOVE_DATE, 0);
+        if (updateTimestamp == 0) {
+            updateTimestamp = basicVmMetadata.getLong(TIMESTAMP, 0);
+        }
+        descriptor.setUpdateTimestamp(updateTimestamp);
         
         if (fileMetadata.containsField(OTHER_RECIPIENTS)) {
             BasicDBList otherRecipients = (BasicDBList) fileMetadata.get(OTHER_RECIPIENTS);

@@ -28,6 +28,7 @@ public class MessageDescriptor {
     private String m_fromUri;
     private String m_durationSecs;
     private String m_timestamp;
+    private String m_updateTimestamp;
     private String m_subject;
     private Priority m_priority = Priority.NORMAL;
     private Vector<String> m_otherRecipients;
@@ -131,6 +132,36 @@ public class MessageDescriptor {
         // Use RFC-2822 format
         SimpleDateFormat dateFormat = new SimpleDateFormat(DATE_FORMAT, Locale.ENGLISH);
         m_timestamp = dateFormat.format(timestamp);
+    }
+
+    public Date getUpdateTimeStampDate() {
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat(DATE_FORMAT, Locale.ENGLISH);
+        try {
+            return dateFormat.parse(m_updateTimestamp);
+        } catch (ParseException e) {
+            // hmmm .. lets try the default locale (for backward compatibility)
+            dateFormat = new SimpleDateFormat(DATE_FORMAT);
+            try {
+                return dateFormat.parse(m_updateTimestamp);
+            } catch (ParseException e1) {
+                return null;
+            }
+        }
+    }
+
+    public String getUpdateTimestampString() {
+        return m_updateTimestamp;
+    }
+
+    public void setUpdateTimestamp(String timestamp) {
+        m_updateTimestamp = timestamp;
+    }
+
+    public void setUpdateTimestamp(long timestamp) {
+        // Use RFC-2822 format
+        SimpleDateFormat dateFormat = new SimpleDateFormat(DATE_FORMAT, Locale.ENGLISH);
+        m_updateTimestamp = dateFormat.format(timestamp);
     }
 
     public String getSubject() {

@@ -410,7 +410,7 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
                 , originalMessage.getMessageId());
         
         GridFSDBFile preferredAudio = m_gridFSVmTemplate.findFileByAudioIdentifier(vmMetadata
-                , VmAudioIdentifier.COMBINED, VmAudioIdentifier.CURRENT);
+                , VmAudioIdentifier.COMBINED, VmAudioIdentifier.CURRENT, VmAudioIdentifier.ORIGINAL);
         
         if(preferredAudio != null) {
             MessageDescriptor preferredAudioDescriptor = m_gridFSVmTemplate.createMessageDescriptor(preferredAudio);
@@ -602,6 +602,7 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
         descriptor.setFromUri(vmDescriptor.getFromUri());
         descriptor.setSubject(vmDescriptor.getSubject());
         descriptor.setTimestamp(vmDescriptor.getTimestampString());
+        descriptor.setUpdateTimestamp(vmDescriptor.getUpdateTimestampString());
         descriptor.setPriority(vmDescriptor.getPriority());
         
         if (vmDescriptor.getOtherRecipients() != null) {
@@ -624,6 +625,7 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
         descriptor.setFromUri(vmDescriptor.getFromUri());
         descriptor.setSubject(vmDescriptor.getSubject());
         descriptor.setTimestamp(vmDescriptor.getTimestampString());
+        descriptor.setUpdateTimestamp(vmDescriptor.getUpdateTimestampString());
         descriptor.setPriority(vmDescriptor.getPriority());
         
         if (vmDescriptor.getOtherRecipients() != null) {
@@ -644,6 +646,7 @@ public class GridFSMailboxManager extends AbstractMailboxManager {
         descriptor.setFromUri(vmDescriptor.getFromUri());
         descriptor.setSubject(vmDescriptor.getSubject());
         descriptor.setTimestamp(vmDescriptor.getTimestampString());
+        descriptor.setUpdateTimestamp(vmDescriptor.getUpdateTimestampString());
         descriptor.setPriority(vmDescriptor.getPriority());
         
         if (vmDescriptor.getOtherRecipients() != null) {
