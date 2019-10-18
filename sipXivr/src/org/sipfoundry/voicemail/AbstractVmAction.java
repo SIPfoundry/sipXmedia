@@ -41,6 +41,7 @@ public abstract class AbstractVmAction implements VmAction {
     protected MailboxManager m_mailboxManager;
     private HashMap<String, DistributionList> m_sysDistLists;
     private ValidUsers m_validUsers;
+    private boolean m_disableOperator0;
 
     public User getCurrentUser() {
         return m_controller.getCurrentUser();
@@ -123,6 +124,10 @@ public abstract class AbstractVmAction implements VmAction {
 
     public String getChannelCallerIdNumber() {
         return m_controller.getChannelCallerIdNumber();
+    }
+
+    public boolean isDisableOperator0() {
+        return m_disableOperator0;
     }
 
     public DialByNameChoice createDialByNameDialog() {
@@ -287,6 +292,10 @@ public abstract class AbstractVmAction implements VmAction {
 
     public void setValidUsers(ValidUsers validUsers) {
         m_validUsers = validUsers;
+    }
+
+    public void setDisableOperator0(boolean operator0) {
+        m_disableOperator0 = operator0;
     }
 
     public void personalizeLocale(String localeString, User user)

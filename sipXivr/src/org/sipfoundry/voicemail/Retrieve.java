@@ -175,6 +175,10 @@ public class Retrieve extends AbstractVmAction {
             // To reach the company operator, press 0"
             String validDigits = "123458";
             PromptList menuPl = getPromptList("main_menu");
+            if (isDisableOperator0()) {
+                mainMenu.setOperatorOn0(false);
+                menuPl = getPromptList("main_menu_no_operator");
+            }
 
             if (getCurrentUser().canRecordPrompts()) {
                 // For system administration options, press 7.

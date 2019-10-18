@@ -70,6 +70,8 @@ public class GridFSVmTemplate {
     private final GridFsTemplate m_gridFSTemplate;
     private final MongoDbFactory m_dbFactory;
     private final String m_bucket;
+
+    private boolean m_excludeSavedFolder;
     
     public GridFSVmTemplate(MongoDbFactory dbFactory) {
         this(dbFactory, DEFAULT_BUCKET);
@@ -380,10 +382,13 @@ public class GridFSVmTemplate {
     }
 
     public void cleanup(String username, Date deleteFrom) {
-        List<DBObject> vmMetadatas = doFindVMs(
-            new BasicDBObject(GridFSVmTemplate.USER, username)
-                .append(GridFSVmTemplate.TIMESTAMP, new BasicDBObject("$lt", deleteFrom.getTime()))
-                , null, null);
+        BasicDBObject query = m_excludeSavedFolder 
+                ? new BasicDBObject(GridFSVmTemplate.USER, username)
+                        .append(GridFSVmTemplate.LABEL, new BasicDBObject("$ne", Folder.SAVED.getId()))
+                        .append(GridFSVmTemplate.TIMESTAMP, new BasicDBObject("$lt", deleteFrom.getTime()))
+                : new BasicDBObject(GridFSVmTemplate.USER, username)
+                        .append(GridFSVmTemplate.TIMESTAMP, new BasicDBObject("$lt", deleteFrom.getTime()));
+        List<DBObject> vmMetadatas = doFindVMs(query, null, null);
         for(DBObject vmMetadata : vmMetadatas) {
             delete(vmMetadata);
         }
@@ -735,6 +740,10 @@ public class GridFSVmTemplate {
     private DBCollection getVmCollection() {
         DB db = m_dbFactory.getDb();
         return db.getCollection(m_bucket + ".metadata");
+    }
+
+    public void setExcludeSavedFolder(boolean excludeSavedFolder) {
+        m_excludeSavedFolder = excludeSavedFolder;
     }
 
     private static MongoConverter getDefaultMongoConverter(MongoDbFactory factory) {

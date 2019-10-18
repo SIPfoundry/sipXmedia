@@ -38,6 +38,7 @@
   
   <bean id="gridFSVmTemplate" class="org.sipfoundry.voicemail.mailbox.gridfs.GridFSVmTemplate">
   	<constructor-arg ref="mongoDBDelegateFactory"/>
+    <property name="excludeSavedFolder" value="${ivr.savedInboxExcludeCleanup}" />
   </bean>
   
   <bean id="gridFSSequenceCounter" class="org.sipfoundry.voicemail.mailbox.gridfs.GridFSSequenceCounter">
@@ -59,6 +60,7 @@
     <property name="mailboxManager" ref="mailboxManager" />
     <property name="validUsers" ref="validUsers" />
     <property name="deletedVMExpiry" value="${ivr.voiceMailExpiry}" />
+    <property name="primary" value="${ivr.primary}" />
   </bean>
 
   <task:scheduled-tasks>

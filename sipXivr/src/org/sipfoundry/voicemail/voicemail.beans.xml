@@ -39,6 +39,7 @@
     <property name="validUsers" ref="validUsers" />
     <property name="mailboxManager" ref="mailboxManager" />
     <property name="eslRequestController" ref="vmEslRequestController" />
+    <property name="disableOperator0" value="${ivr.disableOperator0}" />
   </bean>
 
   <bean id="voicemailConfiguration" class="org.sipfoundry.sipxivr.ApplicationConfiguraton" />

@@ -25,23 +25,28 @@ public class VoicemailCleanup {
     private MailboxManager m_mailboxManager;
     private ValidUsers m_validUsers;
     private int m_deletedVMExpiry = 7;
+    private boolean m_primary = false;
+    private boolean m_excludeSavedFolder = false;
 
     public void run() {
-        LOG.warn("Starting Voicemail cleanup");
-        DBCursor cursor = m_validUsers.getUsers();
-        Iterator<DBObject> objects = cursor.iterator();
-        while (objects.hasNext()) {
-            DBObject users = objects.next();
-            String userName = ValidUsers.getStringValue(users, UID);
-            Integer daysToKeepVM = ValidUsers.getIntegerValue(users, DAYS_TO_KEEP_VM);
-            if (daysToKeepVM != null && daysToKeepVM != DISABLE_VOICEMAIL_CLEANUP) {
-                m_mailboxManager.cleanupMailbox(userName, daysToKeepVM);
-            }
+        // Only run this in primary voicemail server
+        if (m_primary) {
+            LOG.warn("Starting Voicemail cleanup");
+            DBCursor cursor = m_validUsers.getUsers();
+            Iterator<DBObject> objects = cursor.iterator();
+            while (objects.hasNext()) {
+                DBObject users = objects.next();
+                String userName = ValidUsers.getStringValue(users, UID);
+                Integer daysToKeepVM = ValidUsers.getIntegerValue(users, DAYS_TO_KEEP_VM);
+                if (daysToKeepVM != null && daysToKeepVM != DISABLE_VOICEMAIL_CLEANUP) {
+                    m_mailboxManager.cleanupMailbox(userName, daysToKeepVM);
+                }
 
-            m_mailboxManager.cleanupTrash(userName, m_deletedVMExpiry);
+                m_mailboxManager.cleanupTrash(userName, m_deletedVMExpiry);
+            }
+            cursor.close();
+            LOG.warn("Finished Voicemail cleanup");
         }
-        cursor.close();
-        LOG.warn("Finished Voicemail cleanup");
     }
 
     @Required
@@ -54,7 +59,12 @@ public class VoicemailCleanup {
         m_validUsers = validUsers;
     }
 
+    public void setPrimary(boolean primary) {
+        m_primary = primary;
+    }
+
     public void setDeletedVMExpiry(int deletedVMExpiry) {
         m_deletedVMExpiry = deletedVMExpiry;
     }
+    
 }
