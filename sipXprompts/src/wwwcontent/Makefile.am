@@ -2,6 +2,7 @@
 aapromptsdir=@SIPX_VXMLDATADIR@/prompts
 dist_aaprompts_DATA = \
 	stdprompts_en/autoattendant.wav \
+	stdprompts_en/autoattendant_csu.wav \
 	stdprompts_en/afterhours.wav
 
 promptsdir = @wwwdir@/doc/stdprompts_en
