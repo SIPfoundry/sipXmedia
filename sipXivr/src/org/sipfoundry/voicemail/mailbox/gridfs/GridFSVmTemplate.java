@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -384,9 +385,10 @@ public class GridFSVmTemplate {
     public void cleanup(String username, Date deleteFrom) {
         BasicDBObject query = m_excludeSavedFolder 
                 ? new BasicDBObject(GridFSVmTemplate.USER, username)
-                        .append(GridFSVmTemplate.LABEL, new BasicDBObject("$ne", Folder.SAVED.getId()))
+                        .append(GridFSVmTemplate.LABEL, new BasicDBObject("$in", Arrays.asList(Folder.INBOX, Folder.CONFERENCE, Folder.DELETED)))
                         .append(GridFSVmTemplate.TIMESTAMP, new BasicDBObject("$lt", deleteFrom.getTime()))
                 : new BasicDBObject(GridFSVmTemplate.USER, username)
+                        .append(GridFSVmTemplate.LABEL, new BasicDBObject("$in", Arrays.asList(Folder.INBOX, Folder.SAVED, Folder.CONFERENCE, Folder.DELETED)))
                         .append(GridFSVmTemplate.TIMESTAMP, new BasicDBObject("$lt", deleteFrom.getTime()));
         List<DBObject> vmMetadatas = doFindVMs(query, null, null);
         for(DBObject vmMetadata : vmMetadatas) {
