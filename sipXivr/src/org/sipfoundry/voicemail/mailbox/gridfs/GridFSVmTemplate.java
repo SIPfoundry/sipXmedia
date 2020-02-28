@@ -385,10 +385,10 @@ public class GridFSVmTemplate {
     public void cleanup(String username, Date deleteFrom) {
         BasicDBObject query = m_excludeSavedFolder 
                 ? new BasicDBObject(GridFSVmTemplate.USER, username)
-                        .append(GridFSVmTemplate.LABEL, new BasicDBObject("$in", Arrays.asList(Folder.INBOX, Folder.CONFERENCE, Folder.DELETED)))
+                        .append(GridFSVmTemplate.LABEL, new BasicDBObject("$in", Arrays.asList(Folder.INBOX.getId(), Folder.CONFERENCE.getId(), Folder.DELETED.getId())))
                         .append(GridFSVmTemplate.TIMESTAMP, new BasicDBObject("$lt", deleteFrom.getTime()))
                 : new BasicDBObject(GridFSVmTemplate.USER, username)
-                        .append(GridFSVmTemplate.LABEL, new BasicDBObject("$in", Arrays.asList(Folder.INBOX, Folder.SAVED, Folder.CONFERENCE, Folder.DELETED)))
+                        .append(GridFSVmTemplate.LABEL, new BasicDBObject("$in", Arrays.asList(Folder.INBOX.getId(), Folder.SAVED.getId(), Folder.CONFERENCE.getId(), Folder.DELETED.getId())))
                         .append(GridFSVmTemplate.TIMESTAMP, new BasicDBObject("$lt", deleteFrom.getTime()));
         List<DBObject> vmMetadatas = doFindVMs(query, null, null);
         for(DBObject vmMetadata : vmMetadatas) {
