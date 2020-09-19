@@ -89,7 +89,7 @@ class Restore < ArchiveBase
       raise "Not a known archive, version file is missing."
     end
 
-    cmd "#{@initd}/sipxivr stop" if params[:restart]
+    cmd "nohup systemctl stop sipxivr &" if params[:restart]
 
     if !pre_mongo
       cmd "tar -xz --exclude=version --exclude=dump -C #{@sipxdata}/../.. -f #{params[:file]}" or
@@ -133,7 +133,7 @@ class Restore < ArchiveBase
     FileUtils.rm_rf(["#{@backup_tmp_dir}/version", "#{@backup_tmp_dir}/dump"])
 
     if !pre_mongo
-      cmd "#{@initd}/sipxivr start" if params[:restart]
+      cmd "systemctl start sipxivr" if params[:restart]
     else
       cmd "#{@initd}/sipxivr start --migrate #{@sipxdata}/mediaserver/data/mailstore" if params[:restart]
     end

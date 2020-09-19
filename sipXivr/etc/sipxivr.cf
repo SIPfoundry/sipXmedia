@@ -144,9 +144,9 @@ bundle agent sipxivr_running {
     any::
       "any" usebundle => find_sipxservice_by_command_regex("$(service_command)","sipxivr_running");
     !src.sipxivr::
-      "any" usebundle => rh_chkconfig_status("sipxivr on");
+      "any" usebundle => rh_systemctl_status("enable sipxivr");
     !src.!sipxivr::
-      "any" usebundle => rh_chkconfig_status("sipxivr off");
+      "any" usebundle => rh_systemctl_status("disable sipxivr");
 
   commands:
     (!sipxivr|stop_sipxecs).sipxivr_running::
@@ -163,6 +163,10 @@ bundle agent sipxivr_running {
       "$(sipx.SIPX_SERVICEDIR)/sipxivr"
         comment => "restart sipxivr",
         args => "asyncrestart";
+
+      "/usr/bin/setfacl"
+        comment => "Executed command: setfacl -Rm d:u:freeswitch:rwX,u:freeswitch:rwX $(sipx.SIPX_IVRDATADIR)",
+        args => "-Rm d:u:freeswitch:rwX,u:freeswitch:rwX $(sipx.SIPX_IVRDATADIR)";
 }
 
 body copy_from copy_prompts(server,file) {

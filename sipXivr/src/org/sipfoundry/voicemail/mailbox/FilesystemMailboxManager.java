@@ -16,6 +16,8 @@
  */
 package org.sipfoundry.voicemail.mailbox;
 
+import static java.lang.String.format;
+
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;

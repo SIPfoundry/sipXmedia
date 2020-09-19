@@ -10,6 +10,7 @@ package org.sipfoundry.conference;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,8 +33,8 @@ import org.sipfoundry.sipxrecording.RecordingConfiguration;
 public class ConfRecordThread extends ConfBasicThread {
     static final Logger LOG = Logger.getLogger("org.sipfoundry.sipxrecording");
 
-    static String sourceName = "/tmp/freeswitch/recordings";
-    static String destName = System.getProperty("var.dir") + "/mediaserver/data/recordings";
+    //static String sourceName = "/tmp/freeswitch/recordings";
+    static String sourceName = System.getProperty("var.dir") + "/mediaserver/data/recordings";
 
     //TODO add localization support - port this project to spring maybe
     private static final String PARTICIPANT_ENTERED = "entered your conference as participant";
@@ -48,22 +49,12 @@ public class ConfRecordThread extends ConfBasicThread {
         // Check that the freeswitch initial recording directory exists
         File sourceDir = new File(sourceName);
         if (!sourceDir.exists()) {
-           sourceDir.mkdirs();
+            sourceDir.mkdirs();
+        } else if (Files.isSymbolicLink(sourceDir.toPath())) {
+            sourceDir.delete();
+            sourceDir.mkdirs();
         }
 
-        // Create the distribution directory if it doesn't already exist.
-        File destDir = new File(destName);
-        if (!destDir.exists()) {
-            try {
-                Process process = Runtime.getRuntime().exec(new String[] {"ln", "-s", sourceName, destName});
-                process.waitFor();
-                process.destroy();
-            } catch (IOException e) {
-                LOG.error("ConfRecordThread::IOException error ", e);
-            } catch (InterruptedException e) {
-                LOG.error("ConfRecordThread::InterruptedException error ", e);
-            }
-        }
         setConfConfiguration(recordingConfig);
         hzEnabled = recordingConfig.isHzEnabled();
     }
@@ -172,7 +163,7 @@ public class ConfRecordThread extends ConfBasicThread {
             } catch (InterruptedException e) {
             }
 
-            AuditWavMp3Files(new File(destName));
+            AuditWavMp3Files(new File(sourceName));
             m_conferenceContext.notifyIvr(ivrUris, fileName, conference, false);
         }
         //verify if there is a temporary file recording given user action
